@@ -542,12 +542,32 @@ class CharDataset(Dataset):
         y[len(ix)+1:] = -1 # index -1 will mask the loss at the inactive locations
         return x, y
 
+def split_text(text, max_length):
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        while len(line) > max_length:
+            # Split the line at the maximum length
+            result.append(line[:max_length])
+            line = line[max_length:]
+        result.append(line)
+    return result
+
+# Example usage:
+text = "Your very long text with\nseveral lines, some of which may be very long and need to be split appropriately."
+max_length = 50  # Set your desired maximum line length
+split_lines = split_text(text, max_length)
+print(split_lines)
+
 def create_datasets(input_file):
 
     # preprocessing of the input text file
     with open(input_file, 'r') as f:
         data = f.read()
-    words = data.splitlines()
+#    words = data.splitlines()
+    max_length = 512  # Set your desired maximum line length
+    words = split_text(text, max_length)
+
     words = [w.strip() for w in words] # get rid of any leading or trailing white space
     words = [w for w in words if w] # get rid of any empty strings
     chars = sorted(list(set(''.join(words)))) # all the possible characters

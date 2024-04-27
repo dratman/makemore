@@ -258,6 +258,7 @@ both a hidden state and a cell state, but it's very similar to GRU and in
 practice works just as well.
 """
 
+# =======================================================================================STEP STEP STEP
 class RNNCell(nn.Module):
     """
     the job of a 'Cell' is to:
@@ -438,6 +439,7 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
         idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
         # forward the model to get the logits for the index in the sequence
         logits, _ = model(idx_cond)
+# =======================================================================================STEP STEP STEP
         # pluck the logits at the final step and scale by desired temperature
         logits = logits[:, -1, :] / temperature
         # optionally crop the logits to only the top k options
@@ -460,7 +462,9 @@ def print_samples(num=10):
     """ samples from the model and pretty prints the decoded samples """
     X_init = torch.zeros(num, 1, dtype=torch.long).to(args.device)
     top_k = args.top_k if args.top_k != -1 else None
+# =======================================================================================STEP STEP STEP
     steps = train_dataset.get_output_length() - 1 # -1 because we already start with <START> token (index 0)
+# =======================================================================================STEP STEP STEP
     X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True).to('cpu')
     train_samples, test_samples, new_samples = [], [], []
     for i in range(X_samp.size(0)):
@@ -680,6 +684,7 @@ if __name__ == '__main__':
 
     # training loop
     best_loss = None
+# =======================================================================================STEP STEP STEP
     step = 0
     while True:
 
@@ -696,6 +701,7 @@ if __name__ == '__main__':
         # calculate the gradient, update the weights
         model.zero_grad(set_to_none=True)
         loss.backward()
+# =======================================================================================STEP STEP STEP
         optimizer.step()
 
         # wait for all CUDA work on the GPU to finish then calculate iteration time taken
@@ -704,13 +710,16 @@ if __name__ == '__main__':
         t1 = time.time()
 
         # logging
+# =======================================================================================STEP STEP STEP
         if step % 10 == 0:
             print(f"step {step} | loss {loss.item():.4f} | step time {(t1-t0)*1000:.2f}ms")
 
         # evaluate the model
+# =======================================================================================STEP STEP STEP
         if step > 0 and step % 500 == 0:
             train_loss = evaluate(model, train_dataset, batch_size=100, max_batches=10)
             test_loss  = evaluate(model, test_dataset,  batch_size=100, max_batches=10)
+# =======================================================================================STEP STEP STEP
             writer.add_scalar("Loss/train", train_loss, step)
             writer.add_scalar("Loss/test", test_loss, step)
             writer.flush()
@@ -723,11 +732,14 @@ if __name__ == '__main__':
                 best_loss = test_loss
 
         # sample from the model
+# =======================================================================================STEP STEP STEP
         if step > 0 and step % 200 == 0:
             print_samples(num=10)
 
+# =======================================================================================STEP STEP STEP
         step += 1
         # termination conditions
+# =======================================================================================STEP STEP STEP
         if args.max_steps >= 0 and step >= args.max_steps:
             break
 

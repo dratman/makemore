@@ -250,7 +250,7 @@ class BoW(nn.Module):
 
         return logits, loss
 
-# -----------------------------------------------------------------------------
+# ------------------------------
 """
 Recurrent Neural Net language model: either a vanilla RNN recurrence or a GRU.
 Did not implement an LSTM because its API is a bit more annoying as it has
@@ -345,7 +345,7 @@ class RNN(nn.Module):
 
         return logits, loss
 
-# -----------------------------------------------------------------------------
+# ------------------------------
 # MLP language model
 
 class MLP(nn.Module):
@@ -394,7 +394,7 @@ class MLP(nn.Module):
 
         return logits, loss
 
-# -----------------------------------------------------------------------------
+# ------------------------------
 # Bigram language model
 
 class Bigram(nn.Module):
@@ -423,7 +423,7 @@ class Bigram(nn.Module):
 
         return logits, loss
 
-# -----------------------------------------------------------------------------
+# ------------------------------
 # helper functions for evaluating and sampling from the model
 
 @torch.no_grad()
@@ -464,7 +464,6 @@ def print_samples(num=10):
     top_k = args.top_k if args.top_k != -1 else None
 # =======================================================================================STEP STEP STEP
     steps = train_dataset.get_output_length() - 1 # -1 because we already start with <START> token (index 0)
-# =======================================================================================STEP STEP STEP
     X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True).to('cpu')
     train_samples, test_samples, new_samples = [], [], []
     for i in range(X_samp.size(0)):
@@ -504,7 +503,7 @@ def evaluate(model, dataset, batch_size=50, max_batches=None):
     model.train() # reset model back to training mode
     return mean_loss
 
-# -----------------------------------------------------------------------------
+# ------------------------------
 # helper functions for creating the training and test Datasets that emit words
 
 class CharDataset(Dataset):
@@ -608,7 +607,7 @@ class InfiniteDataLoader:
             batch = next(self.data_iter)
         return batch
 
-# -----------------------------------------------------------------------------
+# ------------------------------
 if __name__ == '__main__':
 
     # parse command line args

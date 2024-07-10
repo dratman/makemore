@@ -1,0 +1,15 @@
+check-gpu.sh
+childrens_books.txt
+list_and_count_unique_words.py
+losses_for_graph.txt
+makemore_cut_down.py
+mnist_train/
+model_archive/
+names/
+python
+runs/
+summarywriter_test.py
+train_with_Twain_command.sh
+twain/
+whole_git_log_2024_04_24.txt
+word_list_with_counts_for_childrens_books.txt

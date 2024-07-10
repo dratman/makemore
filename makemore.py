@@ -1,17 +1,8 @@
 """
-you give this script some words (one per line) and it will generate more things like it.
-uses super state of the art Transformer AI tech
-this code is intended to be super hackable. tune it to your needs.
-
-Changes from minGPT:
-- I removed the from_pretrained function where we init with GPT2 weights
-- I removed dropout layers because the models we train here are small,
-  it's not necessary to understand at this stage and at this scale.
-- I removed weight decay and all of the complexity around what parameters are
-  and are not weight decayed. I don't believe this should make a massive
-  difference at the scale that we operate on here.
+You give this script some words (one per line) and it will generate more things like it.
+Uses super state of the art Transformer AI tech.
+This code is intended to be super hackable. Tune it to your needs.
 """
-
 import os
 import sys
 import time
@@ -28,7 +19,6 @@ from torch.utils.data.dataloader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 # -----------------------------------------------------------------------------
-
 @dataclass
 class ModelConfig:
     block_size: int = None # length of the input sequences of integers
@@ -38,7 +28,6 @@ class ModelConfig:
     n_embd: int = 144 # was 64
     n_embd2: int = 144 # was 64
     n_head: int = 8 # was 4
-
 # -----------------------------------------------------------------------------
 # Transformer Language Model (*exactly* as used in GPT-2)
 
@@ -54,7 +43,7 @@ class CausalSelfAttention(nn.Module):
     """
     A vanilla multi-head masked self-attention layer with a projection at the end.
     It is possible to use torch.nn.MultiheadAttention here but I am including an
-    explicit implementation here to show that there is nothing too scary here.
+    explicit implementation to show that there is nothing too scary here.
     """
 
     def __init__(self, config):
@@ -154,7 +143,6 @@ class Transformer(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         return logits, loss
-
 # -----------------------------------------------------------------------------
 # Bag of Words (BoW) language model
 
@@ -343,15 +331,13 @@ class RNN(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         return logits, loss
-
 # ------------------------------
 # MLP language model
 
 class MLP(nn.Module):
     """
-    takes the previous block_size tokens, encodes them with a lookup table,
+    Takes the previous block_size tokens, encodes them with a lookup table,
     concatenates the vectors and predicts the next token with an MLP.
-
     Reference:
     Bengio et al. 2003 https://www.jmlr.org/papers/volume3/bengio03a/bengio03a.pdf
     """
@@ -395,7 +381,6 @@ class MLP(nn.Module):
 
 # ------------------------------
 # Bigram language model
-
 class Bigram(nn.Module):
     """
     Bigram Language Model 'neural net', simply a lookup table of logits for the
@@ -421,10 +406,8 @@ class Bigram(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         return logits, loss
-
 # ------------------------------
 # helper functions for evaluating and sampling from the model
-
 @torch.no_grad()
 def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None):
     """
@@ -438,7 +421,7 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
         idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
         # forward the model to get the logits for the index in the sequence
         logits, _ = model(idx_cond)
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         # pluck the logits at the final step and scale by desired temperature
         logits = logits[:, -1, :] / temperature
         # optionally crop the logits to only the top k options
@@ -454,14 +437,13 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
             _, idx_next = torch.topk(probs, k=1, dim=-1)
         # append sampled index to the running sequence and continue
         idx = torch.cat((idx, idx_next), dim=1)
-
     return idx
 
 def print_samples(num=10):
     """ samples from the model and pretty prints the decoded samples """
     X_init = torch.zeros(num, 1, dtype=torch.long).to(args.device)
     top_k = args.top_k if args.top_k != -1 else None
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
     steps = train_dataset.get_output_length() - 1 # -1 because we already start with <START> token (index 0)
     X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True).to('cpu')
     train_samples, test_samples, new_samples = [], [], []
@@ -501,10 +483,8 @@ def evaluate(model, dataset, batch_size=50, max_batches=None):
     mean_loss = torch.tensor(losses).mean().item()
     model.train() # reset model back to training mode
     return mean_loss
-
 # ------------------------------
 # helper functions for creating the training and test Datasets that emit words
-
 class CharDataset(Dataset):
 
     def __init__(self, words, chars, max_word_length):
@@ -605,7 +585,6 @@ class InfiniteDataLoader:
             self.data_iter = iter(self.train_loader)
             batch = next(self.data_iter)
         return batch
-
 # ------------------------------
 if __name__ == '__main__':
 
@@ -682,42 +661,35 @@ if __name__ == '__main__':
 
     # training loop
     best_loss = None
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
     step = 0
     while True:
-
         t0 = time.time()
-
         # get the next batch, ship to device, and unpack it to input and target
         batch = batch_loader.next()
         batch = [t.to(args.device) for t in batch]
         X, Y = batch
-
         # feed into the model
         logits, loss = model(X, Y)
-
         # calculate the gradient, update the weights
         model.zero_grad(set_to_none=True)
         loss.backward()
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         optimizer.step()
-
         # wait for all CUDA work on the GPU to finish then calculate iteration time taken
         if args.device.startswith('cuda'):
             torch.cuda.synchronize()
         t1 = time.time()
-
         # logging
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         if step % 10 == 0:
             print(f"step {step} | loss {loss.item():.4f} | step time {(t1-t0)*1000:.2f}ms")
-
         # evaluate the model
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         if step > 0 and step % 500 == 0:
             train_loss = evaluate(model, train_dataset, batch_size=100, max_batches=10)
             test_loss  = evaluate(model, test_dataset,  batch_size=100, max_batches=10)
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
             writer.add_scalar("Loss/train", train_loss, step)
             writer.add_scalar("Loss/test", test_loss, step)
             writer.flush()
@@ -728,16 +700,13 @@ if __name__ == '__main__':
                 print(f"test loss {test_loss} is the best so far, saving model to {out_path}")
                 torch.save(model.state_dict(), out_path)
                 best_loss = test_loss
-
         # sample from the model
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         if step > 0 and step % 200 == 0:
             print_samples(num=10)
-
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         step += 1
         # termination conditions
-# =======================================================================================STEP STEP STEP
+# ======================================================================================= STEP
         if args.max_steps >= 0 and step >= args.max_steps:
             break
-

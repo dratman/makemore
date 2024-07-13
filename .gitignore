@@ -10,3 +10,4 @@ runs/
 summarywriter_test.py
 whole_git_log_2024_04_24.txt
 word_list_with_counts_for_childrens_books.txt
+**/*tfevents*

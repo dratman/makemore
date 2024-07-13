@@ -6,6 +6,7 @@ This code is intended to be super hackable. Tune it to your needs.
 import os
 import sys
 import time
+from datetime import datetime
 import math
 import argparse
 from dataclasses import dataclass
@@ -464,6 +465,7 @@ def print_samples(num=10):
     for lst, desc in [(train_samples, 'in train'), (test_samples, 'in test'), (new_samples, 'new')]:
         print(f"{len(lst)} samples that are {desc}:")
         for word in lst:
+            print("---")
             print(word)
     print('-'*80)
 
@@ -686,6 +688,11 @@ if __name__ == '__main__':
         # evaluate the model
 #                                                                                        STEP
         if step > 0 and step % 500 == 0:
+            # print date and time of loss report
+            current_datetime = datetime.now()
+            formatted_datetime = current_datetime.strftime(">>>>>   %Y-%m-%d %H:%M")
+            print(formatted_datetime)
+            # prepare to print loss report
             train_loss = evaluate(model, train_dataset, batch_size=100, max_batches=10)
             test_loss  = evaluate(model, test_dataset,  batch_size=100, max_batches=10)
 #                                                                                        STEP
@@ -693,12 +700,14 @@ if __name__ == '__main__':
             writer.add_scalar("Loss/test", test_loss, step)
             writer.flush()
             print(f"step {step} train loss: {train_loss} test loss: {test_loss}")
-            # save the model to disk if it has improved
+            # save the model to disk if it has improved [Save anyway! See below]
             if best_loss is None or test_loss < best_loss:
-                out_path = os.path.join(args.work_dir, "model.pt")
-                print(f"test loss {test_loss} is the best so far, saving model to {out_path}")
-                torch.save(model.state_dict(), out_path)
-                best_loss = test_loss
+                      best_loss = test_loss
+#                     print(f"test loss {test_loss} is the best so far, saving model to {out_path}")
+#                     torch.save(model.state_dict(), out_path)
+            # Save model unconditionally
+            out_path = os.path.join(args.work_dir, "model.pt")
+            torch.save(model.state_dict(), out_path)
         # sample from the model
 #                                                                                        STEP
         if step > 0 and step % 200 == 0:

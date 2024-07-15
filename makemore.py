@@ -1,8 +1,7 @@
-"""
-You give this script some words (one per line) and it will generate more things like it.
-Uses super state of the art Transformer AI tech.
-This code is intended to be super hackable. Tune it to your needs.
-"""
+# You give this script some words (one per line) and it will generate more things like it.
+# Uses super state of the art Transformer AI tech.
+# This code is intended to be hackable. Tune it to your needs.
+
 import os
 import sys
 import time
@@ -11,7 +10,6 @@ import math
 import argparse
 from dataclasses import dataclass
 from typing import List
-
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
@@ -33,19 +31,18 @@ class ModelConfig:
 # Transformer Language Model (*exactly* as used in GPT-2)
 
 class NewGELU(nn.Module):
-    """
-    Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
-    Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
-    """
+
+    # Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
+    # Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
+
     def forward(self, x):
         return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
 
 class CausalSelfAttention(nn.Module):
-    """
-    A vanilla multi-head masked self-attention layer with a projection at the end.
-    It is possible to use torch.nn.MultiheadAttention here but I am including an
-    explicit implementation to show that there is nothing too scary here.
-    """
+
+    # A vanilla multi-head masked self-attention layer with a projection at the end.
+    # It is possible to use torch.nn.MultiheadAttention here but I am including an
+    # explicit implementation to show that this is nothing too scary.
 
     def __init__(self, config):
         super().__init__()
@@ -77,12 +74,12 @@ class CausalSelfAttention(nn.Module):
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
+
         y = self.c_proj(y)
         return y
 
 class Block(nn.Module):
-    """ an unassuming Transformer block """
-
+    # An unassuming Transformer block
     def __init__(self, config):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
@@ -102,7 +99,7 @@ class Block(nn.Module):
         return x
 
 class Transformer(nn.Module):
-    """ Transformer Language Model, exactly as seen in GPT-2 """
+    # Transformer Language Model, exactly as seen in GPT-2
 
     def __init__(self, config):
         super().__init__()
@@ -144,284 +141,20 @@ class Transformer(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         return logits, loss
-# -----------------------------------------------------------------------------
-# Bag of Words (BoW) language model
 
-class CausalBoW(nn.Module):
-    """
-    Causal bag of words. Averages the preceding elements and looks suspiciously like
-    a CausalAttention module you'd find in a transformer, for no apparent reason at all ;)
-    """
-    def __init__(self, config):
-        super().__init__()
-
-        # used to mask out vectors and preserve autoregressive property
-        self.block_size = config.block_size
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
-                            .view(1, config.block_size, config.block_size))
-
-    def forward(self, x):
-        B, T, C = x.size() # batch size, sequence length, n_embd
-
-        # do the weighted average of all preceeding token features
-        att = torch.zeros((B, T, T), device=x.device)
-        att = att.masked_fill(self.bias[:,:T,:T] == 0, float('-inf'))
-        att = F.softmax(att, dim=-1)
-        y = att @ x # (B, T, T) x (B, T, C) -> (B, T, C)
-
-        return y
-
-class BoWBlock(nn.Module):
-    """ collects BoW features and adds an MLP """
-
-    def __init__(self, config):
-        super().__init__()
-
-        # Causal BoW module
-        self.cbow = CausalBoW(config)
-        # MLP assembler
-        self.mlp = nn.ModuleDict(dict(
-            c_fc    = nn.Linear(config.n_embd, config.n_embd2),
-            c_proj  = nn.Linear(config.n_embd2, config.n_embd),
-        ))
-        m = self.mlp
-        self.mlpf = lambda x: m.c_proj(F.tanh(m.c_fc(x))) # MLP forward
-
-    def forward(self, x):
-        x = x + self.cbow(x)
-        x = x + self.mlpf(x)
-        return x
-
-class BoW(nn.Module):
-    """
-    takes the previous block_size tokens, encodes them with a lookup table,
-    also encodes their positions with lookup table, then averages all of those
-    embeddings up and uses that to predict the next token.
-    """
-
-    def __init__(self, config):
-        super().__init__()
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        # token embedding
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd)
-        # position embedding
-        self.wpe = nn.Embedding(config.block_size, config.n_embd)
-        # context block
-        self.context_block = BoWBlock(config)
-        # language model head decoder layer
-        self.lm_head = nn.Linear(config.n_embd, self.vocab_size)
-
-    def get_block_size(self):
-        return self.block_size
-
-    def forward(self, idx, targets=None):
-
-        device = idx.device
-        b, t = idx.size()
-        assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
-        pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0) # shape (1, t)
-
-        # forward the token and position embedding layers
-        tok_emb = self.wte(idx) # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.wpe(pos) # position embeddings of shape (1, t, n_embd)
-        # add and run through the decoder MLP
-        x = tok_emb + pos_emb
-        # run the bag of words context module
-        x = self.context_block(x)
-        # decode to next token probability
-        logits = self.lm_head(x)
-
-        # if we are given some desired targets also calculate the loss
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        return logits, loss
-
-# ------------------------------
-"""
-Recurrent Neural Net language model: either a vanilla RNN recurrence or a GRU.
-Did not implement an LSTM because its API is a bit more annoying as it has
-both a hidden state and a cell state, but it's very similar to GRU and in
-practice works just as well.
-"""
-
-class RNNCell(nn.Module):
-    """
-    the job of a 'Cell' is to:
-    take input at current time step x_{t} and the hidden state at the
-    previous time step h_{t-1} and return the resulting hidden state
-    h_{t} at the current timestep
-    """
-    def __init__(self, config):
-        super().__init__()
-        self.xh_to_h = nn.Linear(config.n_embd + config.n_embd2, config.n_embd2)
-
-    def forward(self, xt, hprev):
-        xh = torch.cat([xt, hprev], dim=1)
-        ht = F.tanh(self.xh_to_h(xh))
-        return ht
-
-class GRUCell(nn.Module):
-    """
-    same job as RNN cell, but a bit more complicated recurrence formula
-    that makes the GRU more expressive and easier to optimize.
-    """
-    def __init__(self, config):
-        super().__init__()
-        # input, forget, output, gate
-        self.xh_to_z = nn.Linear(config.n_embd + config.n_embd2, config.n_embd2)
-        self.xh_to_r = nn.Linear(config.n_embd + config.n_embd2, config.n_embd2)
-        self.xh_to_hbar = nn.Linear(config.n_embd + config.n_embd2, config.n_embd2)
-
-    def forward(self, xt, hprev):
-        # first use the reset gate to wipe some channels of the hidden state to zero
-        xh = torch.cat([xt, hprev], dim=1)
-        r = F.sigmoid(self.xh_to_r(xh))
-        hprev_reset = r * hprev
-        # calculate the candidate new hidden state hbar
-        xhr = torch.cat([xt, hprev_reset], dim=1)
-        hbar = F.tanh(self.xh_to_hbar(xhr))
-        # calculate the switch gate that determines if each channel should be updated at all
-        z = F.sigmoid(self.xh_to_z(xh))
-        # blend the previous hidden state and the new candidate hidden state
-        ht = (1 - z) * hprev + z * hbar
-        return ht
-
-class RNN(nn.Module):
-
-    def __init__(self, config, cell_type):
-        super().__init__()
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        self.start = nn.Parameter(torch.zeros(1, config.n_embd2)) # the starting hidden state
-        self.wte = nn.Embedding(config.vocab_size, config.n_embd) # token embeddings table
-        if cell_type == 'rnn':
-            self.cell = RNNCell(config)
-        elif cell_type == 'gru':
-            self.cell = GRUCell(config)
-        self.lm_head = nn.Linear(config.n_embd2, self.vocab_size)
-
-    def get_block_size(self):
-        return self.block_size
-
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
-
-        # embed all the integers up front and all at once for efficiency
-        emb = self.wte(idx) # (b, t, n_embd)
-
-        # sequentially iterate over the inputs and update the RNN state each tick
-        hprev = self.start.expand((b, -1)) # expand out the batch dimension
-        hiddens = []
-        for i in range(t):
-            xt = emb[:, i, :] # (b, n_embd)
-            ht = self.cell(xt, hprev) # (b, n_embd2)
-            hprev = ht
-            hiddens.append(ht)
-
-        # decode the outputs
-        hidden = torch.stack(hiddens, 1) # (b, t, n_embd2)
-        logits = self.lm_head(hidden)
-
-        # if we are given some desired targets also calculate the loss
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        return logits, loss
-# ------------------------------
-# MLP language model
-
-class MLP(nn.Module):
-    """
-    Takes the previous block_size tokens, encodes them with a lookup table,
-    concatenates the vectors and predicts the next token with an MLP.
-    Reference:
-    Bengio et al. 2003 https://www.jmlr.org/papers/volume3/bengio03a/bengio03a.pdf
-    """
-
-    def __init__(self, config):
-        super().__init__()
-        self.block_size = config.block_size
-        self.vocab_size = config.vocab_size
-        self.wte = nn.Embedding(config.vocab_size + 1, config.n_embd) # token embeddings table
-        # +1 in the line above for a special <BLANK> token that gets inserted if encoding a token
-        # before the beginning of the input sequence
-        self.mlp = nn.Sequential(
-            nn.Linear(self.block_size * config.n_embd, config.n_embd2),
-            nn.Tanh(),
-            nn.Linear(config.n_embd2, self.vocab_size)
-        )
-
-    def get_block_size(self):
-        return self.block_size
-
-    def forward(self, idx, targets=None):
-
-        # gather the word embeddings of the previous 3 words
-        embs = []
-        for k in range(self.block_size):
-            tok_emb = self.wte(idx) # token embeddings of shape (b, t, n_embd)
-            idx = torch.roll(idx, 1, 1)
-            idx[:, 0] = self.vocab_size # special <BLANK> token
-            embs.append(tok_emb)
-
-        # concat all of the embeddings together and pass through an MLP
-        x = torch.cat(embs, -1) # (b, t, n_embd * block_size)
-        logits = self.mlp(x)
-
-        # if we are given some desired targets also calculate the loss
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        return logits, loss
-# ------------------------------
-# Bigram language model
-class Bigram(nn.Module):
-    """
-    Bigram Language Model 'neural net', simply a lookup table of logits for the
-    next character given a previous character.
-    """
-
-    def __init__(self, config):
-        super().__init__()
-        n = config.vocab_size
-        self.logits = nn.Parameter(torch.zeros((n, n)))
-
-    def get_block_size(self):
-        return 1 # this model only needs one previous character to predict the next
-
-    def forward(self, idx, targets=None):
-
-         # 'forward pass', lol
-        logits = self.logits[idx]
-
-        # if we are given some desired targets also calculate the loss
-        loss = None
-        if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
-
-        return logits, loss
-# ------------------------------
 # helper functions for evaluating and sampling from the model
 @torch.no_grad()
 def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None):
-    """
-    Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
-    the sequence max_new_tokens times, feeding the predictions back into the model each time.
-    Most likely you'll want to make sure to be in model.eval() mode of operation for this.
-    """
+    # Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
+    # the sequence max_new_tokens times, feeding the predictions back into the model each time.
+    # Most likely you'll want to make sure to be in model.eval() mode of operation for this.
     block_size = model.get_block_size()
     for _ in range(max_new_tokens):
         # if the sequence context is growing too long we must crop it at block_size
         idx_cond = idx if idx.size(1) <= block_size else idx[:, -block_size:]
         # forward the model to get the logits for the index in the sequence
         logits, _ = model(idx_cond)
-#                                                                                        STEP
+
         # pluck the logits at the final step and scale by desired temperature
         logits = logits[:, -1, :] / temperature
         # optionally crop the logits to only the top k options
@@ -440,7 +173,7 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
     return idx
 
 # Sample from the model and pretty print the decoded samples.
-# (Some comments below were written by Claude)
+# (Some comments written by Claude)
 
 def print_samples(num=10):
 
@@ -564,19 +297,44 @@ def print_samples(num=10):
             print(word)
     print('-'*80)
 
+# This function, evaluate, is designed to assess the performance of the model on a given dataset.
+# "@torch.inference_mode()" is a decorator that puts PyTorch into inference mode.
+# It disables gradient computation, which reduces memory usage and speeds up
+# computation when you're not training.
+# This function is typically used to assess how well the model is performing
+# on a validation or test set during or after training. The mean loss gives
+# an indication of the model's overall performance on the dataset.
+
 @torch.inference_mode()
 def evaluate(model, dataset, batch_size=50, max_batches=None):
+    # Put the model in evaluation mode, which can affect
+    # certain layers like Dropout or BatchNorm.
     model.eval()
+
+    # Create a DataLoader to efficiently iterate over the dataset in batches.
+    # It shuffles the data and uses the specified batch size.
     loader = DataLoader(dataset, shuffle=True, batch_size=batch_size, num_workers=0)
+
     losses = []
+
+    # Loop over batches from the DataLoader; move each tensor in the batch to the
+    # specified device (CPU/GPU), and unpack the input (X) and target (Y) from the batch.
     for i, batch in enumerate(loader):
         batch = [t.to(args.device) for t in batch]
         X, Y = batch
+
+        # Run the model on the input X and compute the loss against the target Y.
         logits, loss = model(X, Y)
+
+        # Add the loss value for this batch to the list of losses.
         losses.append(loss.item())
+
+        # Break the loop if we've processed the maximum number of batches specified.
         if max_batches is not None and i >= max_batches:
             break
+    # Compute the mean loss across all batches.
     mean_loss = torch.tensor(losses).mean().item()
+
     model.train() # reset model back to training mode
     return mean_loss
 # ------------------------------
@@ -728,16 +486,6 @@ if __name__ == '__main__':
                        n_embd=args.n_embd, n_embd2=args.n_embd2)
     if args.type == 'transformer':
         model = Transformer(config)
-    elif args.type == 'bigram':
-        model = Bigram(config)
-    elif args.type == 'mlp':
-        model = MLP(config)
-    elif args.type == 'rnn':
-        model = RNN(config, cell_type='rnn')
-    elif args.type == 'gru':
-        model = RNN(config, cell_type='gru')
-    elif args.type == 'bow':
-        model = BoW(config)
     else:
         raise ValueError(f'model type {args.type} is not recognized')
     model.to(args.device)
@@ -757,7 +505,7 @@ if __name__ == '__main__':
 
     # training loop
     best_loss = None
-#                                                                                        STEP
+
     step = 0
     while True:
         t0 = time.time()
@@ -770,18 +518,18 @@ if __name__ == '__main__':
         # calculate the gradient, update the weights
         model.zero_grad(set_to_none=True)
         loss.backward()
-#                                                                                        STEP
+
         optimizer.step()
         # wait for all CUDA work on the GPU to finish then calculate iteration time taken
         if args.device.startswith('cuda'):
             torch.cuda.synchronize()
         t1 = time.time()
         # logging
-#                                                                                        STEP
+
         if step % 10 == 0:
             print(f"step {step} | loss {loss.item():.4f} | step time {(t1-t0)*1000:.2f}ms")
         # evaluate the model
-#                                                                                        STEP
+
         if step > 0 and step % 500 == 0:
             # print date and time of loss report
             current_datetime = datetime.now()
@@ -790,7 +538,7 @@ if __name__ == '__main__':
             # prepare to print loss report
             train_loss = evaluate(model, train_dataset, batch_size=100, max_batches=10)
             test_loss  = evaluate(model, test_dataset,  batch_size=100, max_batches=10)
-#                                                                                        STEP
+
             writer.add_scalar("Loss/train", train_loss, step)
             writer.add_scalar("Loss/test", test_loss, step)
             writer.flush()
@@ -798,18 +546,18 @@ if __name__ == '__main__':
             # save the model to disk if it has improved [Save anyway! See below]
             if best_loss is None or test_loss < best_loss:
                       best_loss = test_loss
-#                     print(f"test loss {test_loss} is the best so far, saving model to {out_path}")
-#                     torch.save(model.state_dict(), out_path)
             # Save model unconditionally
             out_path = os.path.join(args.work_dir, "model.pt")
             torch.save(model.state_dict(), out_path)
+
         # sample from the model
-#                                                                                        STEP
+
         if step > 0 and step % 200 == 0:
             print_samples(num=10)
-#                                                                                        STEP
+
         step += 1
+
         # termination conditions
-#                                                                                        STEP
+
         if args.max_steps >= 0 and step >= args.max_steps:
             break

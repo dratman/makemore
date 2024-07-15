@@ -440,109 +440,105 @@ def generate(model, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k
     return idx
 
 # Sample from the model and pretty print the decoded samples.
+# (Some comments below were written by Claude)
+
 def print_samples(num=10):
-"""
-(Long comments below by Claude)
-The next line of code is creating an initial tensor to start the generation process. Here's what each part means:
---->torch.zeros(num, 1, ...): This creates a tensor filled with zeros. The shape
-of this tensor is (num, 1), where num is the number of samples to generate
-(passed as an argument to the print_samples function, defaulting to 10).
-dtype=torch.long: This specifies that the data type of the tensor should be a
-64-bit integer. In PyTorch, this is often used for storing indices or labels.
-.to(args.device): This moves the tensor to the specified device (CPU or GPU) as
-defined in the args.device parameter. This ensures that the tensor is on the
-same device as the model, which is important for performance and compatibility.
---->The purpose of this tensor is to serve as the initial input for the
-generation process. In the context of a language model:
---->The tensor has shape (num, 1) because it represents num sequences, each
-starting with a single token.
-It's filled with zeros because zero is often used as the index for the <START>
-token in many implementations. This effectively tells the model to start
-generating from the beginning of a sequence.
-The long data type is used because the model likely expects integer indices as
-input, where each integer represents a token in the vocabulary.
---->This initial tensor will be passed to the generate function, which will then
-use the model to progressively generate new tokens, building up complete
-sequences.
-"""
+
+# The next line of code is creating an initial tensor to start the generation process.
+# --->torch.zeros(num, 1, ...): This creates a tensor filled with zeros. The shape
+# of this tensor is (num, 1), where num is the number of samples to generate
+# (passed as an argument to the print_samples function, defaulting to 10).
+# --->dtype=torch.long: This specifies that the data type of the tensor should be a
+# 64-bit integer. In PyTorch, this is often used for storing indices or labels.
+# --->.to(args.device): This moves the tensor to the specified device (CPU or GPU) as
+# defined in the args.device parameter. This ensures that the tensor is on the
+# same device as the model, which is important for performance and compatibility.
+# --->The purpose of this tensor is to serve as the initial input for the
+# generation process.
+# --->The tensor has shape (num, 1) because it represents num sequences, each
+# starting with a single token.It's filled with zeros because zero is used as the index
+# for the <START> token. This tells the model to start generating from the beginning of
+# a sequence.
+# --->This initial tensor will be passed to the generate function, which will then
+# use the model to progressively generate new tokens, building up complete
+# sequences.
+
     X_init = torch.zeros(num, 1, dtype=torch.long).to(args.device)
-"""
-This next line is setting up a parameter for top-k sampling, which is
-a technique used in text generation to control the randomness and quality of
-the output. This is a conditional (ternary) expression in Python. Here's what
-it means:
---->args.top_k is likely an argument passed to the script, probably set
-via command line or in a configuration file. It determines whether to use
-top-k sampling and what value of k to use. If args.top_k is not equal to -1,
-top_k is set to the value of args.top_k. This means top-k sampling will be
-used with the specified k value. If args.top_k is equal to -1, top_k is set
-to None. This is likely a convention used in the code to indicate that top-k
-sampling should not be used.
---->Top-k sampling is a method used in language models to reduce the
-likelihood of generating low-probability or nonsensical tokens. When
-generating each token:
---->If top-k sampling is used (top_k is not None), the model will only
-consider the k most likely next tokens, effectively truncating the
-probability distribution. If top-k sampling is not used (top_k is None), the
-model will consider all possible next tokens according to their
-probabilities.
---->Using top-k sampling can help to improve the quality and coherence of
-the generated text by limiting the model's choices to the most probable
-options. The value of k controls the trade-off between creativity (lower k)
-and predictability (higher k) in the generated output.
-"""
+
+# This next line is setting up a parameter for top-k sampling, which is
+# a technique used in text generation to control the randomness and quality of
+# the output. This is a conditional (ternary) expression in Python.
+# --->args.top_k is likely an argument passed to the script, probably set
+# via command line or in a configuration file. It determines whether to use
+# top-k sampling and what value of k to use. If args.top_k is not equal to -1,
+# top_k is set to the value of args.top_k. This means top-k sampling will be
+# used with the specified k value. If args.top_k is equal to -1, top_k is set
+# to None.
+# --->Top-k sampling is a method used in language models to reduce the
+# likelihood of generating low-probability or nonsensical tokens. When
+# generating each token:
+# --->If top-k sampling is used (top_k is not None), the model will only
+# consider the k most likely next tokens, effectively truncating the
+# probability distribution. If top-k sampling is not used (top_k is None), the
+# model will consider all possible next tokens according to their
+# probabilities.
+# --->Using top-k sampling can help to improve the quality and coherence of
+# the generated text by limiting the model's choices to the most probable
+# options. The value of k controls the trade-off between creativity (lower k)
+# and predictability (higher k) in the generated output.
+
     top_k = args.top_k if args.top_k != -1 else None
-"""
---->train_dataset.get_output_length(): This method call is likely returning
-the maximum or expected length of an output sequence in the training dataset.
-This could be, for example, the maximum word length if the model is
-generating words. The -1 subtraction: As the comment explains, this is
-because the generation process is already starting with a <START> token
-(represented by index 0 in the initial tensor we saw earlier).
---->Let's elaborate on why this subtraction is necessary:
---->In many sequence generation tasks, we start with a special <START> token
-and end with a special <END> or <STOP> token. The initial tensor (X_init)
-created earlier already includes this <START> token. Therefore, we need one
-less step than the full output length, as we're generating everything after
-the <START> token.
---->For example, if the maximum word length in the dataset is 10 characters:
---->The full sequence would be: <START> + 8 characters + <END>, which is 10
-tokens. But since we're already starting with <START>, we only need to
-generate 9 more tokens (8 characters + <END>).
---->This steps variable will be used in the generate function call to specify
-how many tokens should be generated after the initial <START> token. The
-careful handling of these special tokens and sequence lengths is crucial in
-ensuring that the model generates complete and properly formatted sequences.
-"""
+
+# --->train_dataset.get_output_length(): This method call is likely returning
+# the maximum or expected length of an output sequence in the training dataset.
+# This could be, for example, the maximum word length if the model is
+# generating words. The -1 subtraction: As the comment explains, this is
+# because the generation process is already starting with a <START> token
+# (represented by index 0 in the initial tensor we saw earlier).
+# --->Let's elaborate on why this subtraction is necessary:
+# --->In many sequence generation tasks, we start with a special <START> token
+# and end with a special <END> or <STOP> token. The initial tensor (X_init)
+# created earlier already includes this <START> token. Therefore, we need one
+# less step than the full output length, as we're generating everything after
+# the <START> token.
+# --->For example, if the maximum word length in the dataset is 10 characters:
+# --->The full sequence would be: <START> + 8 characters + <END>, which is 10
+# tokens. But since we're already starting with <START>, we only need to
+# generate 9 more tokens (8 characters + <END>).
+# --->This steps variable will be used in the generate function call to specify
+# how many tokens should be generated after the initial <START> token. The
+# careful handling of these special tokens and sequence lengths is crucial in
+# ensuring that the model generates complete and properly formatted sequences.
+
     steps = train_dataset.get_output_length() - 1
-"""
---->generate(): This is a function call to generate sequences using the
-trained model. While we don't see the implementation of this function in the
-provided code snippet, it's likely a custom function defined elsewhere in the
-codebase. Arguments to generate():
---->model: The trained language model being used for generation. X_init: The
-initial tensor we saw earlier, containing the start tokens. steps: The number
-of generation steps, which we just discussed in the previous explanation.
-top_k: The parameter for top-k sampling, which we discussed earlier.
-do_sample=True: This likely indicates that the generation should use sampling
-rather than always choosing the most probable token (which would be called
-greedy decoding).
---->.to('cpu'): After generation, the resulting tensor is moved to the CPU.
-This is often done to make further processing easier, especially if the
-generation was performed on a GPU.
---->The generate() function is doing the heavy lifting here. It's using the
-trained model to probabilistically generate sequences of tokens, starting
-from the initial <START> tokens in X_init, and continuing for steps number of
-steps. The resulting X_samp is likely a tensor with shape (num, steps+1),
-where:
---->num is the number of samples generated (10 by default in this function)
-steps+1 is the length of each generated sequence (including the initial
-<START> token)
---->Each row in X_samp represents one generated sequence, with each element
-being a token index corresponding to the model's vocabulary. This generated
-sample will then be processed and decoded in the subsequent code to produce
-human-readable output.
-"""
+
+# --->generate(): This is a function call to generate sequences using the
+# trained model. While we don't see the implementation of this function in the
+# provided code snippet, it's likely a custom function defined elsewhere in the
+# codebase. Arguments to generate():
+# --->model: The trained language model being used for generation. X_init: The
+# initial tensor we saw earlier, containing the start tokens. steps: The number
+# of generation steps, which we just discussed in the previous explanation.
+# top_k: The parameter for top-k sampling, which we discussed earlier.
+# do_sample=True: This likely indicates that the generation should use sampling
+# rather than always choosing the most probable token (which would be called
+# greedy decoding).
+# --->.to('cpu'): After generation, the resulting tensor is moved to the CPU.
+# This is often done to make further processing easier, especially if the
+# generation was performed on a GPU.
+# --->The generate() function is doing the heavy lifting here. It's using the
+# trained model to probabilistically generate sequences of tokens, starting
+# from the initial <START> tokens in X_init, and continuing for steps number of
+# steps. The resulting X_samp is likely a tensor with shape (num, steps+1),
+# where:
+# --->num is the number of samples generated (10 by default in this function)
+# steps+1 is the length of each generated sequence (including the initial
+# <START> token)
+# --->Each row in X_samp represents one generated sequence, with each element
+# being a token index corresponding to the model's vocabulary. This generated
+# sample will then be processed and decoded in the subsequent code to produce
+# human-readable output.
+
     X_samp = generate(model, X_init, steps, top_k=top_k, do_sample=True).to('cpu')
 
     train_samples, test_samples, new_samples = [], [], []

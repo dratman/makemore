@@ -1,11 +1,11 @@
-"""
-You give this script some words (one per line) and it will generate more things like it.
-Uses super state of the art Transformer AI tech.
-This code is intended to be super hackable. Tune it to your needs.
-"""
+# You give this script some words (one per line) and it will generate more things like it.
+# Uses super state of the art Transformer AI tech.
+# This code is intended to be hackable. Tune it to your needs.
+
 import os
 import sys
 import time
+from datetime import datetime
 import math
 import argparse
 from dataclasses import dataclass
@@ -32,19 +32,17 @@ class ModelConfig:
 # Transformer Language Model (*exactly* as used in GPT-2)
 
 class NewGELU(nn.Module):
-    """
-    Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
-    Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
-    """
+
+    # Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
+    # Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
+
     def forward(self, x):
         return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
 
 class CausalSelfAttention(nn.Module):
-    """
-    A vanilla multi-head masked self-attention layer with a projection at the end.
-    It is possible to use torch.nn.MultiheadAttention here but I am including an
-    explicit implementation to show that there is nothing too scary here.
-    """
+    # A vanilla multi-head masked self-attention layer with a projection at the end.
+    # It is possible to use torch.nn.MultiheadAttention here but I am including an
+    # explicit implementation to show that this is nothing too scary.
 
     def __init__(self, config):
         super().__init__()
@@ -80,8 +78,7 @@ class CausalSelfAttention(nn.Module):
         return y
 
 class Block(nn.Module):
-    """ an unassuming Transformer block """
-
+    # An unassuming Transformer block
     def __init__(self, config):
         super().__init__()
         self.ln_1 = nn.LayerNorm(config.n_embd)
@@ -654,7 +651,7 @@ if __name__ == '__main__':
         print("resuming from existing model in the workdir")
         model.load_state_dict(torch.load(os.path.join(args.work_dir, 'model.pt')))
     if args.sample_only:
-        print_samples(num=20)
+        print_samples(num=20k)
         sys.exit()
 
     # init optimizer

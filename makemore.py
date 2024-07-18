@@ -395,7 +395,7 @@ def create_datasets(input_file):
     with open(input_file, 'r') as f:
         data = f.read()
 #    words = data.splitlines()
-    max_length = 100  # Set maximum line length
+    max_length = 120  # Set maximum line length
     words = split_text(data, max_length) # Split into lines with a maximum length specified.
 
     words = [w.strip() for w in words] # get rid of any leading or trailing white space
